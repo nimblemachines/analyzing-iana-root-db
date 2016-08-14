@@ -63,7 +63,7 @@ function export()
     print("domain\tdomain type\tdonuts\tsponsor")
 
     each_domain(function(url, domain, domain_type, sponsor)
-        local isdonuts = sponsor:match(donuts) and not
+        local isdonuts = sponsor:match(registries.donuts) and not
                          sponsor:match "^Beats Electronics"
         isdonuts = isdonuts and "donuts" or ""
         url = "http://www.iana.org" .. url
