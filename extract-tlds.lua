@@ -38,22 +38,18 @@ function each_domain(f)
 end
 
 -- Just for kicks, keep these sorted.
-amazon = "^Amazon Registry"
-donuts = "^%u%l+ %u%l+, LLC$"
-famousfour = "^dot %u%l+ Limited$"
-google = "^Charleston Road Registry"
-microsoft = "^Microsoft"
-rightside = "^United TLD H"
-toplevelholdings = "^Top Level Domain"
-uniregistry = "^Uniregistry"
+registries = {
+    amazon = "^Amazon Registry",
+    donuts = "^%u%l+ %u%l+, LLC$",
+    famousfour = "^dot %u%l+ Limited$",
+    google = "^Charleston Road Registry",
+    microsoft = "^Microsoft",
+    rightside = "^United TLD H",
+    toplevelholdings = "^Top Level Domain",
+    uniregistry = "^Uniregistry",
+}
 
-function explore()
-    local suspect = ""      -- match everything
-
-    if arg[1] then
-        suspect = _G[arg[1]]    -- name of "sponsor" to test
-    end
-
+function match(suspect)
     each_domain(function(url, domain, domain_type, sponsor)
         if sponsor:match(suspect) then
             print(fmt("%-16s  %-10s  %s", domain, domain_type, sponsor))
@@ -76,5 +72,8 @@ function export()
     end)
 end
 
---explore()
-export()
+if arg[1] == "match" then
+    match(registries[arg[2]])
+else
+    export()
+end
