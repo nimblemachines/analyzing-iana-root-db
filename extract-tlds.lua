@@ -28,8 +28,8 @@ function read_file(path)
     return contents
 end
 
-function each_domain(f)
-    local dbhtml = read_file "root-db.html"
+function each_domain(dbfile, f)
+    local dbhtml = read_file(dbfile)
     for url, domain, domain_type, sponsor in dbhtml:gmatch [[<tr>%s+<td>%s+<span class="domain tld"><a href="(..-)">(..-)</a></span></td>%s+<td>(..-)</td>%s+<td>(..-)</td>%s+</tr>]] do
         -- sponsor can contain \n chars - normalize them
         sponsor = sponsor:gsub("\n", ", ")
@@ -49,8 +49,8 @@ registries = {
     uniregistry = "^Uniregistry",
 }
 
-function match(suspect)
-    each_domain(function(url, domain, domain_type, sponsor)
+function match(dbfile, suspect)
+    each_domain(dbfile, function(url, domain, domain_type, sponsor)
         if sponsor:match(suspect) then
             print(fmt("%-16s  %-10s  %s", domain, domain_type, sponsor))
         end
@@ -59,21 +59,23 @@ end
 
 -- Create hyperlinks in a format suitable for Google Docs:
 -- =HYPERLINK("/domains/root/db/azure.html", ".azure")
-function export()
+function export(dbfile)
     print("domain\tdomain type\tdonuts\tsponsor")
 
-    each_domain(function(url, domain, domain_type, sponsor)
+    each_domain(dbfile, function(url, domain, domain_type, sponsor)
         local isdonuts = sponsor:match(registries.donuts) and not
                          sponsor:match "^Beats Electronics"
         isdonuts = isdonuts and "donuts" or ""
-        url = "http://www.iana.org" .. url
+        url = "https://www.iana.org" .. url
         print(fmt([[=HYPERLINK("%s","%s")]], url, domain),
             domain_type, isdonuts, sponsor)
     end)
 end
 
-if arg[1] == "match" then
-    match(registries[arg[2]])
+if #arg == 3 and arg[2] == "match" then
+    match(arg[1], registries[arg[3]])
+elseif #arg == 1 then
+    export(arg[1])
 else
-    export()
+    print "Usage: lua extract-tlds.lua <root-db-path> [match <registry>]"
 end
