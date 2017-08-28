@@ -37,10 +37,21 @@ function each_domain(dbfile, f)
     end
 end
 
+-- Replace a few entities and such that are found in the database
+function fix_html(s)
+    s = s:gsub("&amp;", "&")
+    s = s:gsub("&quot;", "'")
+    s = s:gsub("&#39;", "'")
+    s = s:gsub("&#x200e;", utf8.char(0x200e))
+    s = s:gsub("&#x200f;", utf8.char(0x200f))
+    return s
+end
+
 -- Just for kicks, keep these sorted.
 registries = {
     amazon = "^Amazon Registry",
-    donuts = "^%u%l+ %u%l+, LLC$",
+    donuts = "^%u%l+ %u%l%a+, LLC$",  -- match McCook in 2nd position
+    donuts_nopunct = "^%u%l+ %u%l%a+[.,]? LLC$",  -- match McCook in 2nd position
     famousfour = "^dot %u%l+ Limited$",
     google = "^Charleston Road Registry",
     microsoft = "^Microsoft",
@@ -49,9 +60,51 @@ registries = {
     uniregistry = "^Uniregistry",
 }
 
-function match(dbfile, suspect)
+-- If we always check for a comma between the name and "LLC", these are 
+-- matched as Donuts domains, but they are *not* Donuts domains.
+donuts_false_positives = {
+    ["Active Network, LLC"] = true,     -- .active
+    ["Beats Electronics, LLC"] = true,  -- .beats
+}
+
+-- If we allow no punctuation before the "LLC", these are matched as Donuts
+-- domains, but they are *not* Donuts domains.
+donuts_false_positives_nopunct = {
+    ["Plan Bee LLC"] = true,            -- .build
+    ["Citadel Domain LLC"] = true,      -- .citadel
+    ["Desi Networks LLC"] = true,       -- .desi
+    ["Employ Media LLC"] = true,        -- .jobs
+    ["Locus Analytics LLC"] = true,     -- .locus
+    ["Luxury Partners LLC"] = true,     -- .luxury
+    ["Dot Tech LLC"] = true,            -- .tech
+    ["Dot Latin LLC"] = true,           -- .uno
+    ["Monolith Registry LLC"] = true,   -- .vote
+}
+
+-- If we always check for a comma between name and "LLC", these are not
+-- matched as Donuts domains, but they *are* Donuts domains.
+donuts_false_negatives = {
+    ["New Falls. LLC"] = true,      -- .catering
+    ["Tin Mill LLC"] = true,        -- .irish
+}
+
+function match(dbfile, matching)
     each_domain(dbfile, function(url, domain, domain_type, sponsor)
-        if sponsor:match(suspect) then
+        local matched
+        if matching == "donuts" then
+            matched =
+                donuts_false_negatives[sponsor] or
+                (sponsor:match(registries.donuts) and not
+                 donuts_false_positives[sponsor])
+        elseif matching == "donuts_nopunct" then
+            matched =
+                sponsor:match(registries.donuts_nopunct) and not
+                (donuts_false_positives_nopunct[sponsor] or
+                 donuts_false_positives[sponsor])
+        else
+            matched = sponsor:match(registries[matching])
+        end
+        if matched then
             print(fmt("%-16s  %-10s  %s", domain, domain_type, sponsor))
         end
     end)
@@ -63,17 +116,18 @@ function export(dbfile)
     print("domain\tdomain type\tdonuts\tsponsor")
 
     each_domain(dbfile, function(url, domain, domain_type, sponsor)
-        local isdonuts = sponsor:match(registries.donuts) and not
-                         sponsor:match "^Beats Electronics"
+        local isdonuts = donuts_false_negatives[sponsor] or
+                         (sponsor:match(registries.donuts) and not
+                          donuts_false_positives[sponsor])
         isdonuts = isdonuts and "donuts" or ""
         url = "https://www.iana.org" .. url
-        print(fmt([[=HYPERLINK("%s","%s")]], url, domain),
-            domain_type, isdonuts, sponsor)
+        print(fmt([[=HYPERLINK("%s","%s")]], url, fix_html(domain)),
+            domain_type, isdonuts, fix_html(sponsor))
     end)
 end
 
 if #arg == 3 and arg[2] == "match" then
-    match(arg[1], registries[arg[3]])
+    match(arg[1], arg[3])
 elseif #arg == 1 then
     export(arg[1])
 else
