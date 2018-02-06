@@ -30,7 +30,7 @@ end
 
 function each_domain(dbfile, f)
     local dbhtml = read_file(dbfile)
-    for url, domain, domain_type, sponsor in dbhtml:gmatch [[<tr>%s+<td>%s+<span class="domain tld"><a href="(..-)">(..-)</a></span></td>%s+<td>(..-)</td>%s+<td>(..-)</td>%s+</tr>]] do
+    for url, domain, domain_type, sponsor in dbhtml:gmatch [[<tr>%s+<td>%s+<span class="domain tld"><a href="/domains/root/db/(..-)">(..-)</a></span></td>%s+<td>(..-)</td>%s+<td>(..-)</td>%s+</tr>]] do
         -- sponsor can contain \n chars - normalize them
         sponsor = sponsor:gsub("\n", ", ")
         f(url, domain, domain_type, sponsor)
@@ -117,7 +117,7 @@ end
 
 -- Create hyperlinks in a format suitable for Google Docs:
 -- =HYPERLINK("/domains/root/db/azure.html", ".azure")
-function export(dbfile)
+function gen_sheet(dbfile)
     print("domain\tdomain type\tdonuts\tsponsor")
 
     each_domain(dbfile, function(url, domain, domain_type, sponsor)
@@ -127,16 +127,37 @@ function export(dbfile)
         local isrightside = sponsor:match(registries.rightside)
         local donuts = (isdonuts and "donuts") or
                        (isrightside and "rightside") or ""
-        url = "https://www.iana.org" .. url
+        url = "https://www.iana.org/domains/root/db/" .. url
         print(fmt([[=HYPERLINK("%s","%s")]], url, fix_html(domain)),
             domain_type, donuts, fix_html(sponsor))
     end)
 end
 
+-- Generate a Lua table containing the current root db.
+function gen_lua_table(dbfile)
+    print "-- Each entry is an array: url, domain, domain type, donuts, sponsor"
+    print "-- The url has had the initial https://www.iana.org/domains/root/db/ stripped off."
+    print "db = {"
+
+    each_domain(dbfile, function(url, domain, domain_type, sponsor)
+        local isdonuts = donuts_false_negatives[sponsor] or
+                         (sponsor:match(registries.donuts) and not
+                          donuts_false_positives[sponsor])
+        local isrightside = sponsor:match(registries.rightside)
+        local donuts = (isdonuts and "donuts") or
+                       (isrightside and "rightside") or ""
+        print(fmt([[ { %q, %q, %q, %q, %q },]],
+            url, fix_html(domain), domain_type, donuts, fix_html(sponsor)))
+    end)
+    print "}"
+end
+
 if #arg == 3 and arg[2] == "match" then
     match(arg[1], arg[3])
-elseif #arg == 1 then
-    export(arg[1])
+elseif #arg == 2 and arg[2] == "table" then
+    gen_lua_table(arg[1])
+elseif #arg == 2 and arg[2] == "sheet" then
+    gen_sheet(arg[1])
 else
-    print "Usage: lua extract-tlds.lua <root-db-path> [match <registry>]"
+    print "Usage: lua extract-tlds.lua <root-db-path> [match <registry> | table | sheet]"
 end
