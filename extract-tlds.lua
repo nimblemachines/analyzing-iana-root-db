@@ -47,6 +47,9 @@ function fix_html(s)
     return s
 end
 
+-- Aaaaagh! Donuts acquired United TLD Holdco - aka Rightside. So all their
+-- domains need to be marked "donuts" too!
+
 -- Just for kicks, keep these sorted.
 registries = {
     amazon = "^Amazon Registry",
@@ -60,7 +63,7 @@ registries = {
     uniregistry = "^Uniregistry",
 }
 
--- If we always check for a comma between the name and "LLC", these are 
+-- If we always check for a comma between the name and "LLC", these are
 -- matched as Donuts domains, but they are *not* Donuts domains.
 donuts_false_positives = {
     ["Active Network, LLC"] = true,     -- .active
@@ -81,11 +84,13 @@ donuts_false_positives_nopunct = {
     ["Monolith Registry LLC"] = true,   -- .vote
 }
 
--- If we always check for a comma between name and "LLC", these are not
--- matched as Donuts domains, but they *are* Donuts domains.
+-- If we always check for a comma and space between name and "LLC", these
+-- are not matched as Donuts domains, but they *are* Donuts domains.
 donuts_false_negatives = {
     ["New Falls. LLC"] = true,      -- .catering
+    ["Romeo Canyon"] = true,        -- .engineering
     ["Tin Mill LLC"] = true,        -- .irish
+    ["Big Hollow,LLC"] = true,      -- .rentals
 }
 
 function match(dbfile, matching)
@@ -119,10 +124,12 @@ function export(dbfile)
         local isdonuts = donuts_false_negatives[sponsor] or
                          (sponsor:match(registries.donuts) and not
                           donuts_false_positives[sponsor])
-        isdonuts = isdonuts and "donuts" or ""
+        local isrightside = sponsor:match(registries.rightside)
+        local donuts = (isdonuts and "donuts") or
+                       (isrightside and "rightside") or ""
         url = "https://www.iana.org" .. url
         print(fmt([[=HYPERLINK("%s","%s")]], url, fix_html(domain)),
-            domain_type, isdonuts, fix_html(sponsor))
+            domain_type, donuts, fix_html(sponsor))
     end)
 end
 
