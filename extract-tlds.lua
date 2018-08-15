@@ -33,6 +33,12 @@ function each_domain(dbfile, f)
     for url, domain, domain_type, sponsor in dbhtml:gmatch [[<tr>%s+<td>%s+<span class="domain tld"><a href="/domains/root/db/(..-)">(..-)</a></span></td>%s+<td>(..-)</td>%s+<td>(..-)</td>%s+</tr>]] do
         -- sponsor can contain \n chars - normalize them
         sponsor = sponsor:gsub("\n", ", ")
+        -- Because of the sloppiness of the database, in one instance "Dog
+        -- Beach, LLC" is really "Dog\tBeach, LLC" and so it screws up the
+        -- generation of the spreadsheet - which uses tabs as column
+        -- separators. So let's map any tabs to spaces in the sponsor
+        -- field.
+        sponsor = sponsor:gsub("\t", " ")
         f(url, domain, domain_type, sponsor)
     end
 end
