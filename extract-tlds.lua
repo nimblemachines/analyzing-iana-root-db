@@ -135,9 +135,9 @@ end
 
 -- Generate a Lua table containing the current root db.
 function gen_lua_table(dbfile)
-    print "-- Each entry is an array: url, domain, domain type, donuts, sponsor"
+    print "-- Each entry is a table with the following fields: url, domain, domain type, donuts, sponsor"
     print "-- The url has had the initial https://www.iana.org/domains/root/db/ stripped off."
-    print "db = {"
+    print "return {"
 
     each_domain(dbfile, function(url, domain, domain_type, sponsor)
         local isdonuts = donuts_false_negatives[sponsor] or
@@ -146,7 +146,7 @@ function gen_lua_table(dbfile)
         local isrightside = sponsor:match(registries.rightside)
         local donuts = (isdonuts and "donuts") or
                        (isrightside and "rightside") or ""
-        print(fmt([[ { %q, %q, %q, %q, %q },]],
+        print(fmt([[ { url = %q, domain = %q, type = %q, donuts = %q, sponsor = %q },]],
             url, fix_html(domain), domain_type, donuts, fix_html(sponsor)))
     end)
     print "}"
