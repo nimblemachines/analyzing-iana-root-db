@@ -2,17 +2,14 @@
 
 # We are date-stamping everything now.
 
-# If $1 defined, use it as the stamp; otherwise, use today's date.
-if [ $1 ]; then
-   stamp=$1
-else
-   stamp=$(date "+%F")
-fi
+# $1 is the date-stamp
+function gen() {
+    # Run the script to create a Docs sheet of the current db.
+    lua extract-tlds.lua root-db/$1.html sheet > out/$1_root-db.txt
 
-echo Generating for $stamp
+    # Run it again to generate a Lua table containing the current db.
+    lua extract-tlds.lua root-db/$1.html table > out/$1_root-db.lua
+}
 
-# Run the script to create a Docs sheet of the current db.
-lua extract-tlds.lua ${stamp}_root-db.html sheet > ${stamp}_root-db.txt
-
-# Run it again to generate a Lua table containing the current db.
-lua extract-tlds.lua ${stamp}_root-db.html table > ${stamp}_root-db.lua
+mkdir -p out
+for snap in root-db/*.html; do gen $(basename $snap .html); done
