@@ -30,7 +30,7 @@ stamp it, and stash it in ``root-db/``.
 
 Running ``./gen.sh`` will read the files in ``root-db/`` and for each one it
 finds it will generate two files in ``out/``: a .lua file containing the
-database as a table of tables; and a .txt file that is CSV file suitable for
+database as a table of tables; and a .txt file that is a CSV file suitable for
 uploading to Google Docs as a spreadsheet (eg, for further analysis).
 
 ``changes.lua`` is a work-in-progress. Since things are changing all the time
