@@ -36,3 +36,33 @@ uploading to Google Docs as a spreadsheet (eg, for further analysis).
 ``changes.lua`` is a work-in-progress. Since things are changing all the time
 - almost daily - I thought it would be nice to make it easy to see what has
 changed between two snapshots, but I haven't figured out how to do it yet.
+
+But that's not the whole story.
+
+The IANA root zone database is a moving target. It shows the list of
+currently-delegated domains, and who is currently responsible for each one.
+But what about the original applications? Is there a list somewhere? It turns
+that there used to be, but it's now hard to find. I saw a URL in this gist:
+
+https://gist.github.com/lukaszkorecki/2924179
+
+and decided to try downloading it myself. This is the URL:
+
+http://newgtlds.icann.org/en/program-status/application-results/strings-1200utc-13jun12-en
+
+As of August 2018 that URL redirects to
+
+https://gtldresult.icann.org/application-result/applicationstatus
+
+The page at the original URL was a big HTML table (with .CSV and .PDF download
+options); the page at the redirected-to URL shows the first of 56 pages, which you
+could presumably download one by one and concatenate.
+
+Fuck that!
+
+Luckily there is a copy of the original table in the Internet Archive's Wayback Machine. The URL to
+*that* is
+
+https://web.archive.org/web/20120613142047if_/http://newgtlds-cloudfront.icann.org/sites/default/files/reveal/strings-1200utc-13jun12-en.html
+
+and with that data we can see who the original culprits were...
