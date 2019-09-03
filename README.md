@@ -22,7 +22,7 @@ be easily uploaded to Drive as a Sheet. This makes it easy to sort and play
 with. And the URLs are finally handled in a nice way (using =HYPERLINK()).
 
 This code is a work in progress! I hope to grab new versions of the root file
-and the constituent domain files on a regular basis. Weekly would be great -
+and the constituent domain files on a regular basis. Weekly would be great --
 these things are changing rapidly!
 
 Running ``./fetch.sh`` will grab the latest root zone db as an HTML file, date
@@ -33,8 +33,8 @@ finds it will generate two files in ``out/``: a .lua file containing the
 database as a table of tables; and a .txt file that is a CSV file suitable for
 uploading to Google Docs as a spreadsheet (eg, for further analysis).
 
-``changes.lua`` is a work-in-progress. Since things are changing all the
-time - almost daily - I thought it would be nice to make it easy to see what has
+``changes.lua`` is a work-in-progress. Since things are changing all the time
+-- almost daily -- I thought it would be nice to make it easy to see what has
 changed between two snapshots, but I haven't figured out how to do it yet.
 
 But that's not the whole story.
