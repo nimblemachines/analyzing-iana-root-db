@@ -33,8 +33,8 @@ finds it will generate two files in ``out/``: a .lua file containing the
 database as a table of tables; and a .txt file that is a CSV file suitable for
 uploading to Google Docs as a spreadsheet (eg, for further analysis).
 
-``changes.lua`` is a work-in-progress. Since things are changing all the time
-- almost daily - I thought it would be nice to make it easy to see what has
+``changes.lua`` is a work-in-progress. Since things are changing all the
+time - almost daily - I thought it would be nice to make it easy to see what has
 changed between two snapshots, but I haven't figured out how to do it yet.
 
 But that's not the whole story.
@@ -55,13 +55,13 @@ As of August 2018 that URL redirects to
 https://gtldresult.icann.org/application-result/applicationstatus
 
 The page at the original URL was a big HTML table (with .CSV and .PDF download
-options); the page at the redirected-to URL shows the first of 56 pages, which you
-could presumably download one by one and concatenate.
+options); the page at the redirected-to URL shows the first of 56 pages, which
+you could presumably download one by one and concatenate.
 
 Fuck that!
 
-Luckily there is a copy of the original table in the Internet Archive's Wayback Machine. The URL to
-*that* is
+Luckily there is a copy of the original table in the Internet Archive's
+Wayback Machine. The URL to *that* is
 
 https://web.archive.org/web/20120613142047if_/http://newgtlds-cloudfront.icann.org/sites/default/files/reveal/strings-1200utc-13jun12-en.html
 
