@@ -28,6 +28,16 @@ function read_file(path)
     return contents
 end
 
+-- Replace a few entities and such that are found in the database
+function fix_html(s)
+    s = s:gsub("&amp;", "&")
+    s = s:gsub("&quot;", "'")
+    s = s:gsub("&#39;", "'")
+    s = s:gsub("&#x200e;", utf8.char(0x200e))
+    s = s:gsub("&#x200f;", utf8.char(0x200f))
+    return s
+end
+
 function each_domain(dbfile, f)
     local dbhtml = read_file(dbfile)
     for url, domain, domain_type, sponsor in dbhtml:gmatch [[<tr>%s+<td>%s+<span class="domain tld"><a href="/domains/root/db/(..-)">(..-)</a></span></td>%s+<td>(..-)</td>%s+<td>(..-)</td>%s+</tr>]] do
@@ -39,22 +49,14 @@ function each_domain(dbfile, f)
         -- separators. So let's map any tabs to spaces in the sponsor
         -- field.
         sponsor = sponsor:gsub("\t", " ")
-        f(url, domain, domain_type, sponsor)
+        f(url, fix_html(domain), domain_type, fix_html(sponsor))
     end
-end
-
--- Replace a few entities and such that are found in the database
-function fix_html(s)
-    s = s:gsub("&amp;", "&")
-    s = s:gsub("&quot;", "'")
-    s = s:gsub("&#39;", "'")
-    s = s:gsub("&#x200e;", utf8.char(0x200e))
-    s = s:gsub("&#x200f;", utf8.char(0x200f))
-    return s
 end
 
 -- Aaaaagh! Donuts acquired United TLD Holdco - aka Rightside. So all their
 -- domains need to be marked "donuts" too!
+
+-- United TLD Holdco is gone. All of their domains are now Dog Beach, LLC.
 
 -- Just for kicks, keep these sorted.
 registries = {
@@ -62,6 +64,7 @@ registries = {
     donuts = "^%u%l+ %u%l%a+, LLC$",  -- match McCook in 2nd position
     donuts_nopunct = "^%u%l+ %u%l%a+[.,]? LLC$",  -- match McCook in 2nd position
     famousfour = "^dot %u%l+ Limited$",
+    godaddy = "^Registry Services, LLC",
     google = "^Charleston Road Registry",
     microsoft = "^Microsoft",
     rightside = "^United TLD H",
@@ -74,6 +77,7 @@ registries = {
 donuts_false_positives = {
     ["Active Network, LLC"] = true,     -- .active
     ["Beats Electronics, LLC"] = true,  -- .beats
+    ["Registry Services, LLC"] = true,  -- .compare, .select
 }
 
 -- If we allow no punctuation before the "LLC", these are matched as Donuts
@@ -99,24 +103,41 @@ donuts_false_negatives = {
     ["Big Hollow,LLC"] = true,      -- .rentals
 }
 
-function match(dbfile, matching)
+function is_donuts(sponsor)
+    return donuts_false_negatives[sponsor] or
+        (sponsor:match(registries.donuts) and not
+         donuts_false_positives[sponsor])
+end
+
+function is_donuts_nopunct(sponsor)
+    return donuts_false_negatives[sponsor] or
+        sponsor:match(registries.donuts_nopunct) and not
+        (donuts_false_positives_nopunct[sponsor] or
+         donuts_false_positives[sponsor])
+end
+
+iana_root_db_url = "https://www.iana.org/domains/root/db/"
+
+function match(dbfile, matching, output_html)
+    output_html = output_html and output_html == "html"
     each_domain(dbfile, function(url, domain, domain_type, sponsor)
         local matched
         if matching == "donuts" then
-            matched =
-                donuts_false_negatives[sponsor] or
-                (sponsor:match(registries.donuts) and not
-                 donuts_false_positives[sponsor])
+            matched = is_donuts(sponsor)
         elseif matching == "donuts_nopunct" then
-            matched =
-                sponsor:match(registries.donuts_nopunct) and not
-                (donuts_false_positives_nopunct[sponsor] or
-                 donuts_false_positives[sponsor])
+            matched = is_donuts_nopunct(sponsor)
         else
             matched = sponsor:match(registries[matching])
         end
         if matched then
-            print(fmt("%-16s  %-10s  %s", domain, domain_type, sponsor))
+            if output_html then
+                url = iana_root_db_url .. url
+                -- XXX make an html table?
+                print(fmt([[<a href="%s">%s</a>%s %-10s  %s]],
+                    url, domain, (" "):rep(16-domain:len()), domain_type, sponsor))
+            else
+                print(fmt("%-16s  %-10s  %s", domain, domain_type, sponsor))
+            end
         end
     end)
 end
@@ -127,15 +148,13 @@ function gen_sheet(dbfile)
     print("domain\tdomain type\tdonuts\tsponsor")
 
     each_domain(dbfile, function(url, domain, domain_type, sponsor)
-        local isdonuts = donuts_false_negatives[sponsor] or
-                         (sponsor:match(registries.donuts) and not
-                          donuts_false_positives[sponsor])
+        local isdonuts = is_donuts(sponsor)
         local isrightside = sponsor:match(registries.rightside)
         local donuts = (isdonuts and "donuts") or
                        (isrightside and "rightside") or ""
-        url = "https://www.iana.org/domains/root/db/" .. url
-        print(fmt([[=HYPERLINK("%s","%s")]], url, fix_html(domain)),
-            domain_type, donuts, fix_html(sponsor))
+        url = iana_root_db_url .. url
+        print(fmt([[=HYPERLINK("%s","%s")]], url, domain),
+            domain_type, donuts, sponsor)
     end)
 end
 
@@ -146,24 +165,22 @@ function gen_lua_table(dbfile)
     print "return {"
 
     each_domain(dbfile, function(url, domain, domain_type, sponsor)
-        local isdonuts = donuts_false_negatives[sponsor] or
-                         (sponsor:match(registries.donuts) and not
-                          donuts_false_positives[sponsor])
+        local isdonuts = is_donuts(sponsor)
         local isrightside = sponsor:match(registries.rightside)
         local donuts = (isdonuts and "donuts") or
                        (isrightside and "rightside") or ""
         print(fmt([[ { url = %q, domain = %q, type = %q, donuts = %q, sponsor = %q },]],
-            url, fix_html(domain), domain_type, donuts, fix_html(sponsor)))
+            url, domain, domain_type, donuts, sponsor))
     end)
     print "}"
 end
 
-if #arg == 3 and arg[2] == "match" then
-    match(arg[1], arg[3])
-elseif #arg == 2 and arg[2] == "table" then
-    gen_lua_table(arg[1])
+if #arg >= 3 and arg[2] == "match" then
+    match(arg[1], arg[3], arg[4])
 elseif #arg == 2 and arg[2] == "sheet" then
     gen_sheet(arg[1])
+elseif #arg == 2 and arg[2] == "table" then
+    gen_lua_table(arg[1])
 else
-    print "Usage: lua extract-tlds.lua <root-db-path> [match <registry> | table | sheet]"
+    print "Usage: lua extract-tlds.lua <root-db-path> [match <registry> [html] | sheet | table]"
 end
