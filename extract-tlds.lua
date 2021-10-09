@@ -118,7 +118,7 @@ end
 
 iana_root_db_url = "https://www.iana.org/domains/root/db/"
 
-function match(dbfile, matching, output_html)
+function match(dbfile, which, matching, output_html)
     output_html = output_html and output_html == "html"
     each_domain(dbfile, function(url, domain, domain_type, sponsor)
         local matched
@@ -127,9 +127,13 @@ function match(dbfile, matching, output_html)
         elseif matching == "donuts_nopunct" then
             matched = is_donuts_nopunct(sponsor)
         else
-            matched = sponsor:match(registries[matching])
+            -- See if there is a "nickname" in the registries table; if
+            -- there is, use that entry as the match pattern; otherwise,
+            -- use matching verbatim.
+            matched = sponsor:match(registries[matching] or matching)
         end
-        if matched then
+        if (matched and which == "match") or
+            (not matched and which == "-match") then
             if output_html then
                 url = iana_root_db_url .. url
                 -- XXX make an html table?
@@ -175,8 +179,8 @@ function gen_lua_table(dbfile)
     print "}"
 end
 
-if #arg >= 3 and arg[2] == "match" then
-    match(arg[1], arg[3], arg[4])
+if #arg >= 3 and (arg[2] == "match" or arg[2] == "-match") then
+    match(arg[1], arg[2], arg[3], arg[4])
 elseif #arg == 2 and arg[2] == "sheet" then
     gen_sheet(arg[1])
 elseif #arg == 2 and arg[2] == "table" then
