@@ -1,0 +1,11 @@
+Change matching and printing to be more generic.
+
+- Have a set of output types: sheet, table, text, wiki, html...
+
+- Have an optional "match <pat>" or "-match <pat>" at the end.
+
+- Always generate an annotated list, with "donuts", "amazon", "google", etc in
+  the annotation field.
+
+So I need a way to translate nicknames ("google") to matches ("Charleston Road
+Registry") - for the match phrase - and the other way - the annotation field.
