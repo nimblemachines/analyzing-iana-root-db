@@ -118,73 +118,91 @@ end
 
 iana_root_db_url = "https://www.iana.org/domains/root/db/"
 
-function match(dbfile, which, matching, output_html)
-    output_html = output_html and output_html == "html"
+output = {
+    lua = {
+        prelude = [[
+-- Each entry is a table with the following fields: url, domain, domain type, donuts, sponsor
+-- The url has had the initial "https://www.iana.org/domains/root/db/" stripped off.
+return {]],
+        postlude = "}",
+        print_entry = function(url, domain, domain_type, annotation, sponsor)
+            print(fmt([[  { url = %q, domain = %q, type = %q, donuts = %q, sponsor = %q },]],
+                url, domain, domain_type, annotation, sponsor))
+        end,
+    },
+    sheet = {
+        prelude = "domain\tdomain type\tdonuts\tsponsor",
+        -- No postlude
+        print_entry = function(url, domain, domain_type, annotation, sponsor)
+            -- Create hyperlinks in a format suitable for Google Docs:
+            -- =HYPERLINK("/domains/root/db/azure.html", ".azure")
+            print(fmt([[=HYPERLINK("%s","%s")]], iana_root_db_url .. url, domain),
+                domain_type, annotation, sponsor)
+        end,
+    },
+    text = {
+        -- No prelude or postlude
+        print_entry = function(url, domain, domain_type, annotation, sponsor)
+            print(fmt("%-20s  %-20s  %-10s  %s",
+                domain, domain_type, annotation, sponsor))
+        end,
+    },
+    wiki = {
+        -- No prelude or postlude
+        print_entry = function(url, domain, domain_type, annotation, sponsor)
+            print(fmt("* [[%s %s]]  (%s)\n",
+                iana_root_db_url .. url, domain, sponsor))
+        end,
+    },
+}
+
+function maybe_print(s)
+    if s then print(s) end
+end
+
+function match(dbfile, output_type, which, pattern)
+    maybe_print(output[output_type].prelude)
+
     each_domain(dbfile, function(url, domain, domain_type, sponsor)
-        local matched
-        if matching == "donuts" then
-            matched = is_donuts(sponsor)
-        elseif matching == "donuts_nopunct" then
-            matched = is_donuts_nopunct(sponsor)
-        else
-            -- See if there is a "nickname" in the registries table; if
-            -- there is, use that entry as the match pattern; otherwise,
-            -- use matching verbatim.
-            matched = sponsor:match(registries[matching] or matching)
-        end
-        if (matched and which == "match") or
-            (not matched and which == "-match") then
-            if output_html then
-                url = iana_root_db_url .. url
-                -- XXX make an html table?
-                print(fmt([[<a href="%s">%s</a>%s %-10s  %s]],
-                    url, domain, (" "):rep(16-domain:len()), domain_type, sponsor))
+        local matched = function()
+            if pattern == "donuts" then
+                return is_donuts(sponsor)
+            elseif pattern == "donuts_nopunct" then
+                return is_donuts_nopunct(sponsor)
             else
-                print(fmt("%-16s  %-10s  %s", domain, domain_type, sponsor))
+                -- See if there is a "nickname" in the registries table; if
+                -- there is, use that entry as the match pattern; otherwise,
+                -- use pattern verbatim.
+                return sponsor:match(registries[pattern] or pattern)
             end
         end
+
+        local annotate = function()
+            local isdonuts = is_donuts(sponsor)
+            local isrightside = sponsor:match(registries.rightside)
+            return (isdonuts and "donuts") or
+                   (isrightside and "rightside") or ""
+        end
+
+        if (which == "match" and matched()) or
+            (which == "-match" and not matched()) then
+            output[output_type].print_entry(
+                url, domain, domain_type, annotate(), sponsor)
+        end
     end)
+
+    maybe_print(output[output_type].postlude)
 end
 
--- Create hyperlinks in a format suitable for Google Docs:
--- =HYPERLINK("/domains/root/db/azure.html", ".azure")
-function gen_sheet(dbfile)
-    print("domain\tdomain type\tdonuts\tsponsor")
-
-    each_domain(dbfile, function(url, domain, domain_type, sponsor)
-        local isdonuts = is_donuts(sponsor)
-        local isrightside = sponsor:match(registries.rightside)
-        local donuts = (isdonuts and "donuts") or
-                       (isrightside and "rightside") or ""
-        url = iana_root_db_url .. url
-        print(fmt([[=HYPERLINK("%s","%s")]], url, domain),
-            domain_type, donuts, sponsor)
-    end)
-end
-
--- Generate a Lua table containing the current root db.
-function gen_lua_table(dbfile)
-    print "-- Each entry is a table with the following fields: url, domain, domain type, donuts, sponsor"
-    print "-- The url has had the initial https://www.iana.org/domains/root/db/ stripped off."
-    print "return {"
-
-    each_domain(dbfile, function(url, domain, domain_type, sponsor)
-        local isdonuts = is_donuts(sponsor)
-        local isrightside = sponsor:match(registries.rightside)
-        local donuts = (isdonuts and "donuts") or
-                       (isrightside and "rightside") or ""
-        print(fmt([[ { url = %q, domain = %q, type = %q, donuts = %q, sponsor = %q },]],
-            url, domain, domain_type, donuts, sponsor))
-    end)
-    print "}"
-end
-
-if #arg >= 3 and (arg[2] == "match" or arg[2] == "-match") then
+if #arg == 4 and arg[3]:match "match" then
     match(arg[1], arg[2], arg[3], arg[4])
-elseif #arg == 2 and arg[2] == "sheet" then
-    gen_sheet(arg[1])
-elseif #arg == 2 and arg[2] == "table" then
-    gen_lua_table(arg[1])
+elseif #arg == 2 then
+    match(arg[1], arg[2], "match", ".")
 else
-    print "Usage: lua extract-tlds.lua <root-db-path> [match <registry> [html] | sheet | table]"
+    print [[
+Usage: lua extract-tlds.lua <root-db-path> <output_type> [match <pat> | -match <pat>]
+           <output_type>  is lua, sheet, text, wiki
+           <pat>          is either a registry "nickname" or a Lua pattern;
+                          matches the "sponsor" field
+]]
 end
