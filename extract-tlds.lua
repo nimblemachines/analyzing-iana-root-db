@@ -1,21 +1,6 @@
 -- Open downloaded root-db.html and extract tlds from it, turning them into
 -- a big table, for further analysis.
 
---[[
-
-An example entry looks like this:
-
-    <tr>
-        <td>
-            
-            <span class="domain tld"><a href="/domains/root/db/academy.html">.academy</a></span></td>
-            
-        <td>generic</td>
-        <td>Half Oaks, LLC</td>
-    </tr>
-
---]]
-
 fmt = string.format
 
 -- Reads a file and returns its contents or ""
@@ -38,9 +23,60 @@ function fix_html(s)
     return s
 end
 
-function each_domain(dbfile, f)
-    local dbhtml = read_file(dbfile)
-    for url, domain, domain_type, sponsor in dbhtml:gmatch [[<tr>%s+<td>%s+<span class="domain tld"><a href="/domains/root/db/(..-)">(..-)</a></span></td>%s+<td>(..-)</td>%s+<td>(..-)</td>%s+</tr>]] do
+--[[
+
+In 2012-06, a TLD entry looked like this:
+
+	<tr class="iana-group-1 iana-type-1">
+		<td><a href="/web/20120622120639/https://www.iana.org/domains/root/db/ac.html">.AC</a></td>
+		<td>country-code</td>
+		<!-- <td>Ascension Island<br/><span class="tld-table-so">Network Information Center (AC Domain Registry)
+c/o Cable and Wireless (Ascension Island)</span></td> </td> -->
+		<td>Network Information Center (AC Domain Registry)
+c/o Cable and Wireless (Ascension Island)</td>
+	</tr>
+
+In 2012-12 it changed to:
+
+	<tr class="iana-group-1 iana-type-1">
+		<td><span class="domain tld"><a href="/web/20121230055146/https://www.iana.org/domains/root/db/ac.html">.ac</a></span></td>
+		<td>country-code</td>
+		<!-- <td>Ascension Island<br/><span class="tld-table-so">Network Information Center (AC Domain Registry)
+c/o Cable and Wireless (Ascension Island)</span></td> </td> -->
+		<td>Network Information Center (AC Domain Registry)
+c/o Cable and Wireless (Ascension Island)</td>
+	</tr>
+
+In 2015-12, it changed again:
+
+    <tr>
+        <td>
+
+            <span class="domain tld"><a href="/web/20151223012355/https://www.iana.org/domains/root/db/ac.html">.ac</a></span></td>
+
+        <td>country-code</td>
+        <td>Network Information Center (AC Domain Registry)
+c/o Cable and Wireless (Ascension Island)</td>
+    </tr>
+
+The previous examples are all downloaded from the Internet Archive's
+Wayback Machine. When downloaded directly from IANA the URL format is
+slightly different. Those entries currently look like this:
+
+    <tr>
+        <td>
+
+            <span class="domain tld"><a href="/domains/root/db/ac.html">.ac</a></span></td>
+
+        <td>country-code</td>
+        <td>Network Information Center (AC Domain Registry)
+c/o Cable and Wireless (Ascension Island)</td>
+    </tr>
+
+--]]
+
+function each_domain(db, f)
+    for url, domain, domain_type, sponsor in db:gmatch [[<tr.->%s+<td>.-<a href=".-/domains/root/db/(..-)">(..-)</a>.-</td>%s+<td>(..-)</td>%s+<td>(..-)</td>%s+</tr>]] do
         -- sponsor can contain \n chars - normalize them
         sponsor = sponsor:gsub("\n", ", ")
         -- Because of the sloppiness of the database, in one instance "Dog
@@ -57,6 +93,8 @@ end
 -- domains need to be marked "donuts" too!
 
 -- United TLD Holdco is gone. All of their domains are now Dog Beach, LLC.
+-- A couple of Top Level Spectrum domains are now Dog Beach too (.contact,
+-- .observer).
 
 -- Just for kicks, keep these sorted.
 registries = {
@@ -116,54 +154,84 @@ function is_donuts_nopunct(sponsor)
          donuts_false_positives[sponsor])
 end
 
-iana_root_db_url = "https://www.iana.org/domains/root/db/"
+-- Match the .ac entry to get the complete URL.
+-- Wayback Machine version:
+--    <a href="/web/20120622120639/https://www.iana.org/domains/root/db/ac.html">.AC</a> or
+--    <a href="/web/20121230055146/https://www.iana.org/domains/root/db/ac.html">.ac</a>
+-- Current IANA version:
+--    <a href="/domains/root/db/ac.html">.ac</a>
+
+function url_prefix_from_db(db)
+    local url_prefix = db:match [[<a href="(/%S-domains/root/db/)ac%.html">]]
+    if url_prefix:match "^/web/%d" then
+        -- this is a wayback machine url
+        return "https://web.archive.org" .. url_prefix
+    else
+        -- this is an iana.org url
+        return "https://www.iana.org" .. url_prefix
+    end
+end
 
 output = {
     lua = {
-        prelude = [[
+        prelude = function(url_prefix)
+            print(fmt([[
 -- Each entry is a table with the following fields: url, domain, domain type, donuts, sponsor
--- The url has had the initial "https://www.iana.org/domains/root/db/" stripped off.
-return {]],
-        postlude = "}",
-        print_entry = function(url, domain, domain_type, annotation, sponsor)
-            print(fmt([[  { url = %q, domain = %q, type = %q, donuts = %q, sponsor = %q },]],
+-- The url has had the initial "%s" stripped off.
+return {
+  db = {]], url_prefix))
+        end,
+        postlude = function(url_prefix)
+            print(fmt([[  },
+  url_prefix = "%s",
+}]], url_prefix))
+        end,
+        print_entry = function(url_prefix, url, domain, domain_type, annotation, sponsor)
+            print(fmt([[    { url = %q, domain = %q, type = %q, donuts = %q, sponsor = %q },]],
                 url, domain, domain_type, annotation, sponsor))
         end,
     },
     sheet = {
-        prelude = "domain\tdomain type\tdonuts\tsponsor",
-        -- No postlude
-        print_entry = function(url, domain, domain_type, annotation, sponsor)
-            -- Create hyperlinks in a format suitable for Google Docs:
-            -- =HYPERLINK("/domains/root/db/azure.html", ".azure")
-            print(fmt([[=HYPERLINK("%s","%s")]], iana_root_db_url .. url, domain),
+        prelude = function(url_prefix)
+            print "domain\tdomain type\tdonuts\tsponsor"
+        end,
+        postlude = function(url_prefix) end,
+        print_entry = function(url_prefix, url, domain, domain_type, annotation, sponsor)
+            -- Create hyperlinks in a format suitable for Google Docs, eg:
+            -- =HYPERLINK("https://www.iana.org/domains/root/db/azure.html", ".azure")
+            print(fmt([[=HYPERLINK("%s","%s")]], url_prefix .. url, domain),
                 domain_type, annotation, sponsor)
         end,
     },
     text = {
-        -- No prelude or postlude
-        print_entry = function(url, domain, domain_type, annotation, sponsor)
+        prelude = function(url_prefix)
+        end,
+        postlude = function(url_prefix) end,
+        print_entry = function(url_prefix, url, domain, domain_type, annotation, sponsor)
             print(fmt("%-20s  %-20s  %-10s  %s",
                 domain, domain_type, annotation, sponsor))
         end,
     },
     wiki = {
-        -- No prelude or postlude
-        print_entry = function(url, domain, domain_type, annotation, sponsor)
+        prelude = function(url_prefix) end,
+        postlude = function(url_prefix) end,
+        print_entry = function(url_prefix, url, domain, domain_type, annotation, sponsor)
             print(fmt("* [[%s %s]]  (%s)\n",
-                iana_root_db_url .. url, domain, sponsor))
+                url_prefix .. url, domain, sponsor))
         end,
     },
 }
 
-function maybe_print(s)
-    if s then print(s) end
-end
+function generate(dbfile, output_type, which, pattern)
+    -- Read the db and remove HTML comments that exist in older versions.
+    -- XXX or should I have a second pattern that matches these? They give
+    -- a bit more information about the sponsor.
+    local db = (read_file(dbfile)):gsub("<!%-%-.-%-%->", "")
+    local url_prefix = url_prefix_from_db(db)
 
-function match(dbfile, output_type, which, pattern)
-    maybe_print(output[output_type].prelude)
+    output[output_type].prelude(url_prefix)
 
-    each_domain(dbfile, function(url, domain, domain_type, sponsor)
+    each_domain(db, function(url, domain, domain_type, sponsor)
         local matched = function()
             if pattern == "donuts" then
                 return is_donuts(sponsor)
@@ -187,17 +255,17 @@ function match(dbfile, output_type, which, pattern)
         if (which == "match" and matched()) or
             (which == "-match" and not matched()) then
             output[output_type].print_entry(
-                url, domain, domain_type, annotate(), sponsor)
+                url_prefix, url, domain, domain_type, annotate(), sponsor)
         end
     end)
 
-    maybe_print(output[output_type].postlude)
+    output[output_type].postlude(url_prefix)
 end
 
 if #arg == 4 and arg[3]:match "match" then
-    match(arg[1], arg[2], arg[3], arg[4])
+    generate(arg[1], arg[2], arg[3], arg[4])
 elseif #arg == 2 then
-    match(arg[1], arg[2], "match", ".")
+    generate(arg[1], arg[2], "match", ".")
 else
     print [[
 Usage: lua extract-tlds.lua <root-db-path> <output_type> [match <pat> | -match <pat>]
